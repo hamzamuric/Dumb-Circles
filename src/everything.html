@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            width: 100%;
+            height: 100%;
+        }
+
+        body {
+            width: 100%;
+            height: 100%;
+            background-color: aquamarine;
+        }
+
+        .player {
+            width: 100px;
+            height: 100px;
+            background-color: red;
+            position: absolute;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            left: 100;
+            top: 100;
+            transition: left 100ms linear,
+                top 100ms linear;
+        }
+
+        .player-name {
+            font-size: 12px;
+            display: inline;
+            color: black;
+            background-color: white;
+        }
+    </style>
+    <title>Igrica</title>
+</head>
+
+<body>
+    <form id="form">
+        <input type="text" id="name">
+        <input type="submit" value="Send">
+    </form>
+
+    <script>
+        let player;
+        let players = {};
+
+        let socket = new WebSocket("ws://192.168.1.5:8000/ws");
+
+        socket.onmessage = event => {
+            let data = JSON.parse(event.data);
+            if (data.type === 'new_player') {
+                if ((player && data.name !== player.name) || !player) {
+                    players[data.name] = createPlayer(data.name, data.color);
+                }
+            } else if (data.type === 'move') {
+                if (!player && !(data.name in players)) {
+                    players[data.name] = createPlayer(data.name, data.color);
+                }
+                if (player && data.name !== player.name && !(data.name in players)) {
+                    players[data.name] = createPlayer(data.name, data.color);
+                }
+                if ((player && data.name != player.name) || !player) {
+                    const p = players[data.name];
+                    if (!p.color) p.color = data.color;
+                    p.style.left = data.x + 'px';
+                    p.style.top = data.y + 'px';
+                }
+            }
+        };
+
+        let form = document.getElementById("form");
+
+        form.addEventListener('submit', event => {
+            event.preventDefault();
+            document.getElementById('name').blur();
+
+            let letters = '0123456789ABCDEF';
+            let color = '#';
+            for (let i = 0; i < 6; i++) {
+                color += letters[Math.floor(Math.random() * 16)];
+            }
+            let input = document.getElementById("name");
+
+            player = createPlayer(input.value, color);
+            player.left = 100;
+            player.top = 100;
+            socket.send(JSON.stringify({ type: 'new_player', name: player.name, color: color }));
+            input.value = "";
+
+            document.body.removeChild(event.target);
+        });
+
+        const createPlayer = (name, color) => {
+            console.log("[createPlayer]: ", name, color);
+            const newPlayer = document.createElement('div');
+            newPlayer.name = name;
+            newPlayer.style.backgroundColor = color;
+            newPlayer.style.left = '100px';
+            newPlayer.style.top = '100px';
+            newPlayer.classList.add('player');
+            document.body.appendChild(newPlayer);
+
+            const nameTag = document.createElement('p');
+            nameTag.classList.add('player-name');
+            nameTag.innerHTML = name;
+            newPlayer.appendChild(nameTag);
+
+            return newPlayer;
+        }
+
+        document.onkeydown = e => {
+            if (!e.key || !player) return;
+            switch (e.key) {
+                case "ArrowUp":
+                    player.top -= 10;
+                    player.style.top = player.top + 'px';
+                    break;
+                case "ArrowDown":
+                    player.top += 10;
+                    player.style.top = player.top + 'px';
+                    break;
+                case "ArrowLeft":
+                    player.left -= 10;
+                    player.style.left = player.left + 'px';
+                    break;
+                case "ArrowRight":
+                    player.left += 10;
+                    player.style.left = player.left + 'px';
+                    break;
+            }
+
+            socket.send(JSON.stringify({
+                type: 'move',
+                name: player.name,
+                color: player.style.backgroundColor,
+                x: player.left,
+                y: player.top
+            }));
+        };
+
+    </script>
+</body>
+
+</html>
